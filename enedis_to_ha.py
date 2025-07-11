@@ -1,8 +1,10 @@
-import requests
-import json
-import os
+import argparse
 from datetime import datetime, timedelta
 from dateutil import parser
+import json
+import os
+import requests
+import time
 
 ##################################################################################
 ################################## Configuration #################################
@@ -28,7 +30,7 @@ HA_STAT_PROD_CURVE_NAME = os.getenv("HA_STAT_PROD_CURVE_NAME", "Hourly Injection
 GMT="+03:00"
 
 # Enable testing
-LOAD_DATA_FROM_CACHE = True
+LOAD_DATA_FROM_CACHE = False
 
 ##################################################################################
 ################################### Constantes ###################################
@@ -100,7 +102,6 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         "unit_of_measurement": "Wh",
         "stats": parseStats(jsonData, numberOfStats)
     }
-    print(payload)
 
     res = requests.post(url, headers=headers, json=payload)
     if res.status_code in (200, 201):
@@ -142,14 +143,17 @@ def parseStats(jsonData, numberOfStats):
             else:
                 sumOfStats += int(entry["value"])
                 entryStat["sum"] = sumOfStats
-            # if numberOfStats != 1:
-            #     sumOfStats += int(entry["value"])
-            #     entryStat["sum"] = str(sumOfStats)
             stats.append(entryStat)
-            print(entryStat["start"])
-            print(entryStat["sum"])
     return stats
 
+
+##################################################################################
+################################# Input Arguments ################################
+##################################################################################
+argparser = argparse.ArgumentParser(description="Get data from Enedis and inject to HA. If no date given, process data from yesterday.")
+argparser.add_argument("--startDate", required=False, help="Start date in format YYYY-MM-DD")
+argparser.add_argument("--endDate", required=False, help="End date in format YYYY-MM-DD")
+args = argparser.parse_args()
 
 ##################################################################################
 ################################## Main script ###################################
@@ -163,12 +167,22 @@ if not HA_TOKEN or not HA_URL:
     print("HA_TOKEN or HA_URL missing")
     exit(1)
 
-# Get date to retrieve data
-yesterday = datetime.now() - timedelta(days=1)
-startDate = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
-print(startDate)
-endDate = startDate + timedelta(days=1)
-print(endDate)
+# Get range of date to process
+startDate = ""
+endDate = ""
+if args.startDate and args.endDate:
+    try:
+        startDate = datetime.strptime(args.startDate, "%Y-%m-%d")
+        endDate = datetime.strptime(args.endDate, "%Y-%m-%d")
+    except ValueError as e:
+        print("Error parsing dates:", e)
+        exit(1)
+else:
+    print("No date given. Processing data from yesterday.")
+    yesterday = datetime.now() - timedelta(days=1)
+    startDate = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+    endDate = startDate + timedelta(days=1)
+print("processing Data from ", startDate, " to ", endDate)
 
 # Retrieve Linky data
 print()
@@ -184,10 +198,14 @@ if LOAD_DATA_FROM_CACHE:
     prodCurveData = loadDataFromCache(PROD_CURVE)
 else:
     print("Get data from API")
-    #dailyConsumptionData = retrieveDataFromLink(DAILY_CONSUMPTION, startDate, endDate)
-    #consumptionCurveData = retrieveDataFromLink(CONSUMPTION_CURVE, startDate, endDate)
-    #dailyProdData = retrieveDataFromLink(DAILY_PROD, startDate, endDate)
-    #prodCurveData = retrieveDataFromLink(PROD_CURVE, startDate, endDate)
+    dailyConsumptionData = retrieveDataFromLink(DAILY_CONSUMPTION, startDate, endDate)
+    time.sleep(30)
+    consumptionCurveData = retrieveDataFromLink(CONSUMPTION_CURVE, startDate, endDate)
+    time.sleep(30)
+    dailyProdData = retrieveDataFromLink(DAILY_PROD, startDate, endDate)
+    time.sleep(30)
+    prodCurveData = retrieveDataFromLink(PROD_CURVE, startDate, endDate)
+    time.sleep(30)
 
 if not (dailyConsumptionData or consumptionCurveData or dailyProdData or prodCurve):
     print("Load data failed !")

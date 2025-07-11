@@ -93,5 +93,9 @@ Run the python script to retrieve data from ENEDIS and inject to Home Assistant
 CAUTION: If you make too many request to the API, your IP can be ban definitely!!!!
 
 ```sh
+# Process data from yesterday
 python3 enedis_to_ha.py
+
+# Process data from a given range of dates
+python3 enedis_to_ha.py  --startDate 2025-07-06 --endDate 2025-07-11
 ```

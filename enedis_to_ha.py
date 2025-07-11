@@ -1,8 +1,10 @@
-import requests
-import json
-import os
+import argparse
 from datetime import datetime, timedelta
 from dateutil import parser
+import json
+import os
+import requests
+import time
 
 ##################################################################################
 ################################## Configuration #################################
@@ -146,6 +148,14 @@ def parseStats(jsonData, numberOfStats):
 
 
 ##################################################################################
+################################# Input Arguments ################################
+##################################################################################
+argparser = argparse.ArgumentParser(description="Get data from Enedis and inject to HA. If no date given, process data from yesterday.")
+argparser.add_argument("--startDate", required=False, help="Start date in format YYYY-MM-DD")
+argparser.add_argument("--endDate", required=False, help="End date in format YYYY-MM-DD")
+args = argparser.parse_args()
+
+##################################################################################
 ################################## Main script ###################################
 ##################################################################################
 
@@ -157,12 +167,22 @@ if not HA_TOKEN or not HA_URL:
     print("HA_TOKEN or HA_URL missing")
     exit(1)
 
-# Get date to retrieve data
-yesterday = datetime.now() - timedelta(days=1)
-startDate = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
-print(startDate)
-endDate = startDate + timedelta(days=1)
-print(endDate)
+# Get range of date to process
+startDate = ""
+endDate = ""
+if args.startDate and args.endDate:
+    try:
+        startDate = datetime.strptime(args.startDate, "%Y-%m-%d")
+        endDate = datetime.strptime(args.endDate, "%Y-%m-%d")
+    except ValueError as e:
+        print("Error parsing dates:", e)
+        exit(1)
+else:
+    print("No date given. Processing data from yesterday.")
+    yesterday = datetime.now() - timedelta(days=1)
+    startDate = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+    endDate = startDate + timedelta(days=1)
+print("processing Data from ", startDate, " to ", endDate)
 
 # Retrieve Linky data
 print()

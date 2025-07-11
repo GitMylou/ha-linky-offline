@@ -100,7 +100,6 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         "unit_of_measurement": "Wh",
         "stats": parseStats(jsonData, numberOfStats)
     }
-    print(payload)
 
     res = requests.post(url, headers=headers, json=payload)
     if res.status_code in (200, 201):
@@ -142,12 +141,7 @@ def parseStats(jsonData, numberOfStats):
             else:
                 sumOfStats += int(entry["value"])
                 entryStat["sum"] = sumOfStats
-            # if numberOfStats != 1:
-            #     sumOfStats += int(entry["value"])
-            #     entryStat["sum"] = str(sumOfStats)
             stats.append(entryStat)
-            print(entryStat["start"])
-            print(entryStat["sum"])
     return stats
 
 

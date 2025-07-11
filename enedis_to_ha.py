@@ -28,7 +28,7 @@ HA_STAT_PROD_CURVE_NAME = os.getenv("HA_STAT_PROD_CURVE_NAME", "Hourly Injection
 GMT="+03:00"
 
 # Enable testing
-LOAD_DATA_FROM_CACHE = True
+LOAD_DATA_FROM_CACHE = False
 
 ##################################################################################
 ################################### Constantes ###################################
@@ -178,10 +178,14 @@ if LOAD_DATA_FROM_CACHE:
     prodCurveData = loadDataFromCache(PROD_CURVE)
 else:
     print("Get data from API")
-    #dailyConsumptionData = retrieveDataFromLink(DAILY_CONSUMPTION, startDate, endDate)
-    #consumptionCurveData = retrieveDataFromLink(CONSUMPTION_CURVE, startDate, endDate)
-    #dailyProdData = retrieveDataFromLink(DAILY_PROD, startDate, endDate)
-    #prodCurveData = retrieveDataFromLink(PROD_CURVE, startDate, endDate)
+    dailyConsumptionData = retrieveDataFromLink(DAILY_CONSUMPTION, startDate, endDate)
+    time.sleep(30)
+    consumptionCurveData = retrieveDataFromLink(CONSUMPTION_CURVE, startDate, endDate)
+    time.sleep(30)
+    dailyProdData = retrieveDataFromLink(DAILY_PROD, startDate, endDate)
+    time.sleep(30)
+    prodCurveData = retrieveDataFromLink(PROD_CURVE, startDate, endDate)
+    time.sleep(30)
 
 if not (dailyConsumptionData or consumptionCurveData or dailyProdData or prodCurve):
     print("Load data failed !")

@@ -102,3 +102,18 @@ python3 enedis_to_ha.py
 # Process data from a given range of dates
 python3 enedis_to_ha.py  --startDate 2025-07-06 --endDate 2025-07-11
 ```
+
+## Troubleshooting
+
+### no module named dateutil
+
+if you face the following error: 
+
+```sh
+import dateutil ImportError: No module named 'dateutil'
+```
+you need to install the python module dateutil 
+```sh
+pip3 install python-dateutil
+```
+

@@ -103,6 +103,9 @@ python3 enedis_to_ha.py
 python3 enedis_to_ha.py  --startDate 2025-07-06 --endDate 2025-07-11
 ```
 
+The script will takes some minutes to process data ( I added wait to avoid too many requests per seconds...). 
+Be patient and wait for the script to exit.
+
 ## Troubleshooting
 
 ### no module named dateutil

@@ -1,24 +1,24 @@
 # Linky Data Injection for Home Assistant
 
-This repository contains the necessary scripts to retrieve data from linky and inject those data to home assistant.
+This repository contains the necessary scripts to retrieve data from linky and inject those data to Home Assistant (HA).
 
 This script is based on the work done by Bobuk:
 - Home Assistant Plugin: https://github.com/bokub/ha-linky
 - Conso API: https://github.com/bokub/conso-api
 
-This repository provides an alternative to ha-linky if the HA installation does not support add-ons (this is the case for instance of HA Core) and if the machine hosting the HA Installation does not have access to internet.
+This repository provides an alternative to ha-linky if the HA installation does not support add-ons (this is the case for instance of HA Core) and/or if the machine hosting the HA Installation does not have access to internet.
 
 ## Setup
 
 This repository was tested with the following setup:
 - A Smartphone is running HA Core on Termux Debian distribution. The smartphone does not have direct access to internet
-- A computer with internet access can run the python script and inject data from ENEDI (via Conso API) to HA
+- A computer with internet access can run the python script and inject data from ENEDIS (via Conso API) to HA. A job can be scheduled to execute the python script every day automatically.
 
 ## Prerequisites
 
 You will need:
 - a Linky meter
-- an Enedis customer account
+- an Enedis account
 - Enable hourly consumption collection from your Enedis account ([tutorial](https://github.com/bokub/ha-linky/wiki/Activer-la-collecte-de-la-consommation-horaire))
 - An access token for [Conso API](https://conso.boris.sh/)
 
@@ -33,28 +33,28 @@ Modify your configuration.yaml file:
 ```yaml
 template:
   - sensor:
-      - name: "Linky Daily Consumption"
+      - name: "Daily consumption"
         unique_id: linky_daily_consumption
         state: 0
         device_class: energy
         state_class: total_increasing
         unit_of_measurement: "Wh"
 
-      - name: "Linky consumption curve"
+      - name: "Hourly Consumption"
         unique_id: linky_consumption_load_curve
         state: 0
         device_class: energy
         state_class: total_increasing
         unit_of_measurement: "Wh"
 
-      - name: "Linky Daily Production"
+      - name: "Daily Injection"
         unique_id: linky_daily_production
         state: 0
         device_class: energy
         state_class: total_increasing
         unit_of_measurement: "Wh"
 
-      - name: "Linky production curve"
+      - name: "Hourly Injection"
         unique_id: linky_production_load_curve
         state: 0
         device_class: energy

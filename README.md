@@ -8,6 +8,14 @@ This script is based on the work done by Bobuk:
 
 This repository provides an alternative to ha-linky if the HA installation does not support add-ons (this is the case for instance of HA Core) and/or if the machine hosting the HA Installation does not have access to internet.
 
+## Known issue
+
+The energy dasboard expect a cumulative sum. howevere, the data injected start from 0 and create a wrong value from 00h00 to 01h00. 
+
+I tried to setup the field last_reset but it seems ignored. 
+I cannot retrieve history of a long term statistic to get the last value. 
+I am working on it but if you have idea... Next idea would be to retrieve index from linky instead of consumption, to write historic in file, or to target directly the database 
+
 ## Setup
 
 This repository was tested with the following setup:

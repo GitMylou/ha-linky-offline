@@ -18,14 +18,10 @@ LINKY_PRM = os.getenv("LINKY_PRM")
 HA_TOKEN = os.getenv("HA_TOKEN")
 HA_URL = os.getenv("HA_URL")
 
-HA_STAT_DAILY_CONSUMPTION = os.getenv("HA_STAT_DAILY_CONSUMPTION", "sensor.linky_daily_consumption")
-HA_STAT_DAILY_CONSUMPTION_NAME = os.getenv("HA_STAT_DAILY_CONSUMPTION_NAME", "Daily consumption")
-HA_STAT_CONSUMPTION_CURVE = os.getenv("HA_STAT_CONSUMPTION_CURVE", "sensor.linky_consumption_load_curve")
-HA_STAT_CONSUMPTION_CURVE_NAME = os.getenv("HA_STAT_CONSUMPTION_CURVE_NAME", "Hourly Consumption")
-HA_STAT_DAILY_PROD = os.getenv("HA_STAT_DAILY_PROD", "sensor.linky_daily_production")
-HA_STAT_DAILY_PROD_NAME = os.getenv("HA_STAT_DAILY_PROD_NAME", "Daily Injection")
-HA_STAT_PROD_CURVE = os.getenv("HA_STAT_PROD_CURVE", "sensor.linky_production_load_curve")
-HA_STAT_PROD_CURVE_NAME = os.getenv("HA_STAT_PROD_CURVE_NAME", "Hourly Injection")
+HA_STAT_CONSUMPTION_CURVE = "sensor.linky_hourly_consumption"
+HA_STAT_CONSUMPTION_CURVE_NAME = "Linky Hourly Consumption"
+HA_STAT_PROD_CURVE = "sensor.linky_hourly_injection"
+HA_STAT_PROD_CURVE_NAME = "Linky Hourly Injection"
 
 GMT="+03:00"
 
@@ -37,9 +33,7 @@ LOAD_DATA_FROM_CACHE = False
 ##################################################################################
 
 LINKY_API = "https://conso.boris.sh/api/"
-DAILY_CONSUMPTION = "daily_consumption"
 CONSUMPTION_CURVE = "consumption_load_curve"
-DAILY_PROD = "daily_production"
 PROD_CURVE = "production_load_curve"
 
 ##################################################################################
@@ -85,9 +79,6 @@ def loadDataFromCache(command):
 #   sensorName: The Sensor Name
 #   jsonData: The Json data to be loaded
 def pushDataToHA(sensorId, sensorName, jsonData):
-    numberOfStats = len(jsonData["interval_reading"])
-    hasSum = numberOfStats != 1
-
     url = f"{HA_URL}/api/services/recorder/import_statistics"
     headers = {
         "Authorization": f"Bearer {HA_TOKEN}",
@@ -100,7 +91,7 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         "name": sensorName,
         "statistic_id": sensorId,
         "unit_of_measurement": "Wh",
-        "stats": parseStats(jsonData, numberOfStats)
+        "stats": parseStats(sensorId, jsonData)
     }
 
     res = requests.post(url, headers=headers, json=payload)
@@ -110,26 +101,45 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         print(f"Error while sending data to Home Assistant ({sensorId}): {res.status_code} - {res.text}")
 
 # Parse data from Conso API as Home Assistant format
+#   sensorId: The Sensor ID
 #   jsonData: The Json data to parse for HA
-#   numberOfStats: The number of stat in the data
-def parseStats(jsonData, numberOfStats):
+def parseStats(sensorId, jsonData):
     stats = []
 
-    # Daily production
-    if numberOfStats == 1:
-        entry = jsonData["interval_reading"][0]
-        entryStat = {}
-        entryStat["start"] = str(parser.isoparse(entry["date"]).isoformat(sep=' ')+GMT)
-        entryStat["sum"] = int(entry["value"])
-        stats.append(entryStat)
-        return stats
+    # Energy dashboard use a cumulative sum. 
+    # Try to retrieve statistics from the previous day
+    firstEntry = jsonData["interval_reading"][0]
+    firstDate = parser.isoparse(firstEntry["date"])
+    sumOfStats = 0
+    firstStatistics = getStatistics(sensorId, firstDate.replace(hour=0))
+    if firstStatistics:
+        sumOfStats = firstStatistics
+
+    # We need also to check the last day. 
+    # If statistics for last day already exists, we need to drop the last value
+    # Otherwise, next day will be corrupted....
+    lastEntry = jsonData["interval_reading"][-1]
+    lastEntryDate = parser.isoparse(lastEntry["date"])
+    lastEntryStatistics = getStatistics(sensorId, lastEntryDate)
+    # A reset has been done starting from next day.
+    # We need to drop the lastday value at 23h
+    dropDate = None
+    if lastEntryStatistics == 0:
+        print("Found statistic 0 for next day.")
+        print("We will not write the last value to avoid corrupting next days.")
+        lastEntryDate = lastEntryDate - timedelta(days=1)
+        lastEntryDate.replace(hour=23)
+        dropDate = lastEntryDate
 
     # Hourly production: We need to concatenate if one data each 30 minutes
-    sumOfStats = 0
-    sum30Mn = 0
     isFrequency30mn = False
     for entry in jsonData["interval_reading"]:
         date = parser.isoparse(entry["date"])
+
+        # Drop last entries if needed
+        if dropDate and date == dropDate:
+            return stats
+
         # If update each 30minutes, we don't update database but we register half hour value
         if date.minute == 30:
             sumOfStats += int(entry["value"]) / 2
@@ -146,6 +156,28 @@ def parseStats(jsonData, numberOfStats):
             stats.append(entryStat)
     return stats
 
+# Get long term statistics for specific date
+#   sensorId: The Sensor ID
+#   jsonData: The date to get the statistics
+def getStatistics(sensorId, date):
+    url = f"{HA_URL}/api/long_term_stats"
+    headers = {
+        "Authorization": f"Bearer {HA_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    params = {
+        "entity_id": sensorId,
+        "datetime": str(date.isoformat(sep=' ')+GMT)
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        print("Found previous statistic for ", sensorId, ": ", data["message"]["sum"])
+        return data["message"]["sum"]
+    else:
+        print("No previous statistic found for ", sensorId, ". Starting from 0")
+        return None
 
 ##################################################################################
 ################################# Input Arguments ################################
@@ -192,17 +224,11 @@ dailyProdData = {}
 prodCurveData = {}
 if LOAD_DATA_FROM_CACHE:
     print("Get data from cache....")
-    dailyConsumptionData = loadDataFromCache(DAILY_CONSUMPTION)
     consumptionCurveData = loadDataFromCache(CONSUMPTION_CURVE)
-    dailyProdData = loadDataFromCache(DAILY_PROD)
     prodCurveData = loadDataFromCache(PROD_CURVE)
 else:
     print("Get data from API")
-    dailyConsumptionData = retrieveDataFromLink(DAILY_CONSUMPTION, startDate, endDate)
-    time.sleep(30)
     consumptionCurveData = retrieveDataFromLink(CONSUMPTION_CURVE, startDate, endDate)
-    time.sleep(30)
-    dailyProdData = retrieveDataFromLink(DAILY_PROD, startDate, endDate)
     time.sleep(30)
     prodCurveData = retrieveDataFromLink(PROD_CURVE, startDate, endDate)
     time.sleep(30)
@@ -215,8 +241,6 @@ print("Data Loaded")
 
 print()
 print("Push data to Home Assistant")
-pushDataToHA(HA_STAT_DAILY_CONSUMPTION, HA_STAT_DAILY_CONSUMPTION_NAME, dailyConsumptionData)
 pushDataToHA(HA_STAT_CONSUMPTION_CURVE, HA_STAT_CONSUMPTION_CURVE_NAME, consumptionCurveData)
-pushDataToHA(HA_STAT_DAILY_PROD, HA_STAT_DAILY_PROD_NAME, dailyProdData)
 pushDataToHA(HA_STAT_PROD_CURVE, HA_STAT_PROD_CURVE_NAME, prodCurveData)
 print("Done")

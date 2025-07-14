@@ -56,6 +56,11 @@ template:
         unit_of_measurement: "Wh"
 ```
 
+### Long Term Statistics API
+
+Install the following API 
+https://github.com/GitMylou/ha-get-statistics#
+
 ### Environment file
 
 on the computer where you want to execute the python script (and with an internet connection), clone this repository

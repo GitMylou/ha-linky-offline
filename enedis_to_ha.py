@@ -91,7 +91,7 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         "name": sensorName,
         "statistic_id": sensorId,
         "unit_of_measurement": "Wh",
-        "stats": parseStats(jsonData)
+        "stats": parseStats(sensorId, jsonData)
     }
 
     res = requests.post(url, headers=headers, json=payload)
@@ -101,16 +101,45 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         print(f"Error while sending data to Home Assistant ({sensorId}): {res.status_code} - {res.text}")
 
 # Parse data from Conso API as Home Assistant format
+#   sensorId: The Sensor ID
 #   jsonData: The Json data to parse for HA
-def parseStats(jsonData):
+def parseStats(sensorId, jsonData):
     stats = []
 
-    # Hourly production: We need to concatenate if one data each 30 minutes
+    # Energy dashboard use a cumulative sum. 
+    # Try to retrieve statistics from the previous day
+    firstEntry = jsonData["interval_reading"][0]
+    firstDate = parser.isoparse(firstEntry["date"])
     sumOfStats = 0
-    sum30Mn = 0
+    firstStatistics = getStatistics(sensorId, firstDate.replace(hour=0))
+    if firstStatistics:
+        sumOfStats = firstStatistics
+
+    # We need also to check the last day. 
+    # If statistics for last day already exists, we need to drop the last value
+    # Otherwise, next day will be corrupted....
+    lastEntry = jsonData["interval_reading"][-1]
+    lastEntryDate = parser.isoparse(lastEntry["date"])
+    lastEntryStatistics = getStatistics(sensorId, lastEntryDate)
+    # A reset has been done starting from next day.
+    # We need to drop the lastday value at 23h
+    dropDate = None
+    if lastEntryStatistics == 0:
+        print("Found statistic 0 for next day.")
+        print("We will not write the last value to avoid corrupting next days.")
+        lastEntryDate = lastEntryDate - timedelta(days=1)
+        lastEntryDate.replace(hour=23)
+        dropDate = lastEntryDate
+
+    # Hourly production: We need to concatenate if one data each 30 minutes
     isFrequency30mn = False
     for entry in jsonData["interval_reading"]:
         date = parser.isoparse(entry["date"])
+
+        # Drop last entries if needed
+        if dropDate and date == dropDate:
+            return stats
+
         # If update each 30minutes, we don't update database but we register half hour value
         if date.minute == 30:
             sumOfStats += int(entry["value"]) / 2
@@ -127,6 +156,28 @@ def parseStats(jsonData):
             stats.append(entryStat)
     return stats
 
+# Get long term statistics for specific date
+#   sensorId: The Sensor ID
+#   jsonData: The date to get the statistics
+def getStatistics(sensorId, date):
+    url = f"{HA_URL}/api/long_term_stats"
+    headers = {
+        "Authorization": f"Bearer {HA_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    params = {
+        "entity_id": sensorId,
+        "datetime": str(date.isoformat(sep=' ')+GMT)
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        print("Found previous statistic for ", sensorId, ": ", data["message"]["sum"])
+        return data["message"]["sum"]
+    else:
+        print("No previous statistic found for ", sensorId, ". Starting from 0")
+        return None
 
 ##################################################################################
 ################################# Input Arguments ################################

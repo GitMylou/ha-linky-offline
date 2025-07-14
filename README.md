@@ -41,29 +41,15 @@ Modify your configuration.yaml file:
 ```yaml
 template:
   - sensor:
-      - name: "Daily consumption"
-        unique_id: linky_daily_consumption
+      - name: "Linky Hourly Consumption"
+        unique_id: linky_hourly_consumption
         state: 0
         device_class: energy
         state_class: total_increasing
         unit_of_measurement: "Wh"
 
-      - name: "Hourly Consumption"
-        unique_id: linky_consumption_load_curve
-        state: 0
-        device_class: energy
-        state_class: total_increasing
-        unit_of_measurement: "Wh"
-
-      - name: "Daily Injection"
-        unique_id: linky_daily_production
-        state: 0
-        device_class: energy
-        state_class: total_increasing
-        unit_of_measurement: "Wh"
-
-      - name: "Hourly Injection"
-        unique_id: linky_production_load_curve
+      - name: "Linky Hourly Injection"
+        unique_id: linky_hourly_injection
         state: 0
         device_class: energy
         state_class: total_increasing
@@ -86,13 +72,6 @@ export LINKY_TOKEN=<your enedis token>
 
 export HA_URL=http://<your ha IP>:8123
 export HA_TOKEN=<your ha long life token>
-
-# You can modify those variables if you want custom names
-export HA_STAT_DAILY_CONSUMPTION=sensor.linky_daily_consumption
-export HA_STAT_CONSUMPTION_CURVE=sensor.linky_consumption_load_curve
-export HA_STAT_DAILY_PROD=sensor.linky_daily_production
-export HA_STAT_PROD_CURVE=sensor.linky_production_load_curve
-```
 
 ## Usage
 

@@ -18,14 +18,10 @@ LINKY_PRM = os.getenv("LINKY_PRM")
 HA_TOKEN = os.getenv("HA_TOKEN")
 HA_URL = os.getenv("HA_URL")
 
-HA_STAT_DAILY_CONSUMPTION = os.getenv("HA_STAT_DAILY_CONSUMPTION", "sensor.linky_daily_consumption")
-HA_STAT_DAILY_CONSUMPTION_NAME = os.getenv("HA_STAT_DAILY_CONSUMPTION_NAME", "Daily consumption")
-HA_STAT_CONSUMPTION_CURVE = os.getenv("HA_STAT_CONSUMPTION_CURVE", "sensor.linky_consumption_load_curve")
-HA_STAT_CONSUMPTION_CURVE_NAME = os.getenv("HA_STAT_CONSUMPTION_CURVE_NAME", "Hourly Consumption")
-HA_STAT_DAILY_PROD = os.getenv("HA_STAT_DAILY_PROD", "sensor.linky_daily_production")
-HA_STAT_DAILY_PROD_NAME = os.getenv("HA_STAT_DAILY_PROD_NAME", "Daily Injection")
-HA_STAT_PROD_CURVE = os.getenv("HA_STAT_PROD_CURVE", "sensor.linky_production_load_curve")
-HA_STAT_PROD_CURVE_NAME = os.getenv("HA_STAT_PROD_CURVE_NAME", "Hourly Injection")
+HA_STAT_CONSUMPTION_CURVE = "sensor.linky_hourly_consumption"
+HA_STAT_CONSUMPTION_CURVE_NAME = "Linky Hourly Consumption"
+HA_STAT_PROD_CURVE = "sensor.linky_hourly_injection"
+HA_STAT_PROD_CURVE_NAME = "Linky Hourly Injection"
 
 GMT="+03:00"
 
@@ -37,9 +33,7 @@ LOAD_DATA_FROM_CACHE = False
 ##################################################################################
 
 LINKY_API = "https://conso.boris.sh/api/"
-DAILY_CONSUMPTION = "daily_consumption"
 CONSUMPTION_CURVE = "consumption_load_curve"
-DAILY_PROD = "daily_production"
 PROD_CURVE = "production_load_curve"
 
 ##################################################################################
@@ -85,9 +79,6 @@ def loadDataFromCache(command):
 #   sensorName: The Sensor Name
 #   jsonData: The Json data to be loaded
 def pushDataToHA(sensorId, sensorName, jsonData):
-    numberOfStats = len(jsonData["interval_reading"])
-    hasSum = numberOfStats != 1
-
     url = f"{HA_URL}/api/services/recorder/import_statistics"
     headers = {
         "Authorization": f"Bearer {HA_TOKEN}",
@@ -100,7 +91,7 @@ def pushDataToHA(sensorId, sensorName, jsonData):
         "name": sensorName,
         "statistic_id": sensorId,
         "unit_of_measurement": "Wh",
-        "stats": parseStats(jsonData, numberOfStats)
+        "stats": parseStats(jsonData)
     }
 
     res = requests.post(url, headers=headers, json=payload)
@@ -111,18 +102,8 @@ def pushDataToHA(sensorId, sensorName, jsonData):
 
 # Parse data from Conso API as Home Assistant format
 #   jsonData: The Json data to parse for HA
-#   numberOfStats: The number of stat in the data
-def parseStats(jsonData, numberOfStats):
+def parseStats(jsonData):
     stats = []
-
-    # Daily production
-    if numberOfStats == 1:
-        entry = jsonData["interval_reading"][0]
-        entryStat = {}
-        entryStat["start"] = str(parser.isoparse(entry["date"]).isoformat(sep=' ')+GMT)
-        entryStat["sum"] = int(entry["value"])
-        stats.append(entryStat)
-        return stats
 
     # Hourly production: We need to concatenate if one data each 30 minutes
     sumOfStats = 0
@@ -192,17 +173,11 @@ dailyProdData = {}
 prodCurveData = {}
 if LOAD_DATA_FROM_CACHE:
     print("Get data from cache....")
-    dailyConsumptionData = loadDataFromCache(DAILY_CONSUMPTION)
     consumptionCurveData = loadDataFromCache(CONSUMPTION_CURVE)
-    dailyProdData = loadDataFromCache(DAILY_PROD)
     prodCurveData = loadDataFromCache(PROD_CURVE)
 else:
     print("Get data from API")
-    dailyConsumptionData = retrieveDataFromLink(DAILY_CONSUMPTION, startDate, endDate)
-    time.sleep(30)
     consumptionCurveData = retrieveDataFromLink(CONSUMPTION_CURVE, startDate, endDate)
-    time.sleep(30)
-    dailyProdData = retrieveDataFromLink(DAILY_PROD, startDate, endDate)
     time.sleep(30)
     prodCurveData = retrieveDataFromLink(PROD_CURVE, startDate, endDate)
     time.sleep(30)
@@ -215,8 +190,6 @@ print("Data Loaded")
 
 print()
 print("Push data to Home Assistant")
-pushDataToHA(HA_STAT_DAILY_CONSUMPTION, HA_STAT_DAILY_CONSUMPTION_NAME, dailyConsumptionData)
 pushDataToHA(HA_STAT_CONSUMPTION_CURVE, HA_STAT_CONSUMPTION_CURVE_NAME, consumptionCurveData)
-pushDataToHA(HA_STAT_DAILY_PROD, HA_STAT_DAILY_PROD_NAME, dailyProdData)
 pushDataToHA(HA_STAT_PROD_CURVE, HA_STAT_PROD_CURVE_NAME, prodCurveData)
 print("Done")
